@@ -1,6 +1,6 @@
 package com.tr.lwsm;
 
-import com.tr.lwsm.obj.CustomStateMachine;
+import com.tr.lwsm.obj.LwsmCustomStateMachine;
 import com.tr.lwsm.obj.entity.CustomTransitionResult;
 import org.junit.jupiter.api.Test;
 
@@ -13,12 +13,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * CustomStateMachine单元测试
  */
-class CustomStateMachineTest {
+class CustomLwsmStateMachineTest {
 
     // ==================== 1.字符串作为状态/事件 ====================
     @Test
     void shouldWorkWithStringStateAndEvent() {
-        CustomStateMachine<String, String> engine = new CustomStateMachine<>(Function.identity());
+        LwsmCustomStateMachine<String, String> engine = new LwsmCustomStateMachine<>(Function.identity());
         engine.register("INIT", "PAY", "PAYING")
               .register("PAYING", "PAY", "PAID");
 
@@ -31,7 +31,7 @@ class CustomStateMachineTest {
 
     @Test
     void shouldFailWhenStringRouteNotFound() {
-        CustomStateMachine<String, String> engine = new CustomStateMachine<>(Function.identity());
+        LwsmCustomStateMachine<String, String> engine = new LwsmCustomStateMachine<>(Function.identity());
         engine.register("INIT", "PAY", "PAYING");
 
         CustomTransitionResult<String, String> result = engine.transition("INIT", "CANCEL");
@@ -104,7 +104,7 @@ class CustomStateMachineTest {
         stateCache.put("PAYING", new MyState("PAYING","支付中"));
         stateCache.put("PAID", new MyState("PAID","已支付"));
 
-        CustomStateMachine<MyState, MyEvent> engine = new CustomStateMachine<>(stateCache::get);
+        LwsmCustomStateMachine<MyState, MyEvent> engine = new LwsmCustomStateMachine<>(stateCache::get);
 
         MyState init = new MyState("INIT","待支付");
         MyEvent pay = new MyEvent("PAY","去支付");
@@ -120,7 +120,7 @@ class CustomStateMachineTest {
 
     @Test
     void shouldFailWhenPojoResolverReturnsNull() {
-        CustomStateMachine<MyState, MyEvent> engine = new CustomStateMachine<>(name -> null);
+        LwsmCustomStateMachine<MyState, MyEvent> engine = new LwsmCustomStateMachine<>(name -> null);
         engine.register(new MyState("INIT","待支付"), new MyEvent("PAY","去支付"), new MyState("PAYING","支付中"));
 
         CustomTransitionResult<MyState, MyEvent> result = engine.transition(new MyState("INIT","待支付"), new MyEvent("PAY","已支付"));
@@ -135,7 +135,7 @@ class CustomStateMachineTest {
 
     @Test
     void shouldWorkWithPlainEnumWithoutStateInterface() {
-        CustomStateMachine<PlainState, PlainEvent> engine = new CustomStateMachine<>(PlainState::valueOf);
+        LwsmCustomStateMachine<PlainState, PlainEvent> engine = new LwsmCustomStateMachine<>(PlainState::valueOf);
 
         engine.register(PlainState.INIT, PlainEvent.PAY, PlainState.PAYING);
 
@@ -152,7 +152,7 @@ class CustomStateMachineTest {
         routes.put("INIT_PAY", "PAYING");
         routes.put("PAYING_PAY", "PAID");
 
-        CustomStateMachine<String, String> engine = new CustomStateMachine<>(Function.identity());
+        LwsmCustomStateMachine<String, String> engine = new LwsmCustomStateMachine<>(Function.identity());
         engine.registerAll(routes);
 
         CustomTransitionResult<String, String> r1 = engine.transition("INIT", "PAY");
@@ -165,7 +165,7 @@ class CustomStateMachineTest {
     // ==================== 场景5：链式调用 ====================
     @Test
     void chainedRegisterShouldWork() {
-        CustomStateMachine<String, String> engine = new CustomStateMachine<>(Function.identity());
+        LwsmCustomStateMachine<String, String> engine = new LwsmCustomStateMachine<>(Function.identity());
         engine.register("INIT", "PAY", "PAYING")
               .register("PAYING", "PAY", "PAID");
 
@@ -185,7 +185,7 @@ class CustomStateMachineTest {
     void shouldFailWhenToStringNotMatchingResolver() {
         // 路由注册时 key 是 "状态_INIT_事件_PAY"，解析时 name 也是同样的格式
         // 这里只是演示：如果 toString 格式变化，解析器要同步调整
-        CustomStateMachine<BadState, String> engine = new CustomStateMachine<>(
+        LwsmCustomStateMachine<BadState, String> engine = new LwsmCustomStateMachine<>(
             name -> new BadState(name.replace("状态_", ""))  // 需要把前缀剥掉
         );
 

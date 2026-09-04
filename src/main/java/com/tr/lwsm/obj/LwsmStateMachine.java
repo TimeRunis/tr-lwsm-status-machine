@@ -13,14 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <S> 状态
  * @param <E> 事件
  */
-public class StateMachine<S extends LwsmState, E extends LwsmEvent> {
+public class LwsmStateMachine<S extends LwsmState, E extends LwsmEvent> {
 
     private final Map<String, String> routeTable = new ConcurrentHashMap<>();
 
     /**
      * 注册单条路由(支持链式)
      */
-    public StateMachine<S, E> register(S source, E LwsmEvent, S target) {
+    public LwsmStateMachine<S, E> register(S source, E LwsmEvent, S target) {
         String key = source.name() + "_" + LwsmEvent.name();
         routeTable.put(key, target.name());
         return this;
@@ -29,7 +29,7 @@ public class StateMachine<S extends LwsmState, E extends LwsmEvent> {
     /**
      * 批量注册
      */
-    public StateMachine<S, E> registerAll(Map<String, String> routes) {
+    public LwsmStateMachine<S, E> registerAll(Map<String, String> routes) {
         routeTable.putAll(routes);
         return this;
     }

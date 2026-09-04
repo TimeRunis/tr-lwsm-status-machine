@@ -1,8 +1,6 @@
 package com.tr.lwsm;
 
-import com.tr.lwsm.LwsmEvent;
-import com.tr.lwsm.LwsmState;
-import com.tr.lwsm.obj.StateMachine;
+import com.tr.lwsm.obj.LwsmStateMachine;
 import com.tr.lwsm.obj.entity.TransitionResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * StateMachine 单元测试
  */
-class StateMachineTest {
+class LwsmStateMachineTest {
 
     // ---------- 定义测试枚举（实现 State/Event 接口） ----------
     enum TestState implements LwsmState {
@@ -54,11 +52,11 @@ class StateMachineTest {
     }
 
     // ---------- 每个测试前重置引擎 ----------
-    private StateMachine<TestState, TestEvent> engine;
+    private LwsmStateMachine<TestState, TestEvent> engine;
 
     @BeforeEach
     void setUp() {
-        engine = new StateMachine<>();
+        engine = new LwsmStateMachine<>();
         engine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
                 .register(TestState.INIT, TestEvent.CANCEL, TestState.CANCEL)
                 .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
@@ -126,7 +124,7 @@ class StateMachineTest {
         routes.put("INIT_PAY", "PAYING");
         routes.put("PAYING_PAY", "PAID");
 
-        StateMachine<TestState, TestEvent> batchEngine = new StateMachine<>();
+        LwsmStateMachine<TestState, TestEvent> batchEngine = new LwsmStateMachine<>();
         batchEngine.registerAll(routes);
 
         TransitionResult<TestState, TestEvent> result = batchEngine.transition(TestState.INIT, TestEvent.PAY);
@@ -137,7 +135,7 @@ class StateMachineTest {
     // ==================== 5. 连续流转 ====================
     @Test
     void shouldSupportFullPaymentFlow() {
-        StateMachine<TestState, TestEvent> flowEngine = new StateMachine<>();
+        LwsmStateMachine<TestState, TestEvent> flowEngine = new LwsmStateMachine<>();
         flowEngine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
                 .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
 
@@ -151,7 +149,7 @@ class StateMachineTest {
     // ==================== 6. 链式调用 ====================
     @Test
     void chainedRegisterShouldBeReadable() {
-        StateMachine<TestState, TestEvent> chainEngine = new StateMachine<>();
+        LwsmStateMachine<TestState, TestEvent> chainEngine = new LwsmStateMachine<>();
         chainEngine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
                 .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
 

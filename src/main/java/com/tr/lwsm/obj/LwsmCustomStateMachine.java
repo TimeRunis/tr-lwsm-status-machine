@@ -12,7 +12,7 @@ import java.util.function.Function;
  * @param <S> 状态（任意类型）
  * @param <E> 事件（任意类型）
  */
-public class CustomStateMachine<S, E> {
+public class LwsmCustomStateMachine<S, E> {
 
     private final Map<String, String> routeTable = new HashMap<>();
     private final Function<String, S> stateResolver;
@@ -20,14 +20,14 @@ public class CustomStateMachine<S, E> {
     /**
      * 构造器：必须传入状态解析器
      */
-    public CustomStateMachine(Function<String, S> stateResolver) {
+    public LwsmCustomStateMachine(Function<String, S> stateResolver) {
         this.stateResolver = stateResolver;
     }
 
     /**
      * 注册单条路由(支持链式)
      */
-    public CustomStateMachine<S, E> register(S source, E event, S target) {
+    public LwsmCustomStateMachine<S, E> register(S source, E event, S target) {
         String key = source.toString() + "_" + event.toString();
         routeTable.put(key, target.toString());
         return this;
@@ -36,7 +36,7 @@ public class CustomStateMachine<S, E> {
     /**
      * 批量注册
      */
-    public CustomStateMachine<S, E> registerAll(Map<String, String> routes) {
+    public LwsmCustomStateMachine<S, E> registerAll(Map<String, String> routes) {
         routeTable.putAll(routes);
         return this;
     }

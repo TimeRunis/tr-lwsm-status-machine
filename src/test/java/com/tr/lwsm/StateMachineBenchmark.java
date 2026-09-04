@@ -1,7 +1,7 @@
 package com.tr.lwsm;
 
-import com.tr.lwsm.obj.CustomStateMachine;
-import com.tr.lwsm.obj.StateMachine;
+import com.tr.lwsm.obj.LwsmCustomStateMachine;
+import com.tr.lwsm.obj.LwsmStateMachine;
 import com.tr.lwsm.obj.entity.CustomTransitionResult;
 import com.tr.lwsm.obj.entity.TransitionResult;
 import org.openjdk.jmh.annotations.*;
@@ -51,8 +51,8 @@ public class StateMachineBenchmark {
     }
 
     // ==================== 测试引擎实例 ====================
-    private StateMachine<TestState, TestEvent> enumEngine;
-    private CustomStateMachine<String, String> customEngine;
+    private LwsmStateMachine<TestState, TestEvent> enumEngine;
+    private LwsmCustomStateMachine<String, String> customEngine;
 
     // 用于字符串版的状态/事件常量
     private static final String[] STATE_NAMES = new String[50];
@@ -67,7 +67,7 @@ public class StateMachineBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         // ---- 1. 枚举引擎：注册 50 个状态 × 每个状态关联 1 个事件 = 50 条路由 ----
-        enumEngine = new StateMachine<>();
+        enumEngine = new LwsmStateMachine<>();
         for (int i = 0; i < 49; i++) {
             // S00 + E00 -> S01, S01 + E01 -> S02, ... 形成一条链
             enumEngine.register(
@@ -101,7 +101,7 @@ public class StateMachineBenchmark {
         }
 
         // ---- 3. 自定义引擎（字符串版）：注册同样的路由 ----
-        customEngine = new CustomStateMachine<>(Function.identity());
+        customEngine = new LwsmCustomStateMachine<>(Function.identity());
         for (int i = 0; i < 49; i++) {
             customEngine.register(
                     STATE_NAMES[i],
