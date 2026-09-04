@@ -1,4 +1,4 @@
-package lwsm.obj.entity;
+package com.tr.lwsm.obj.entity;
 
 /**
  * 自定义转换结果

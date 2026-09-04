@@ -1,4 +1,4 @@
-package lwsm;
+package com.tr.lwsm;
 
 public interface LwsmEvent {
     /**

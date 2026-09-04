@@ -1,8 +1,8 @@
-package lwsm.obj.entity;
+package com.tr.lwsm.obj.entity;
 
 
-import lwsm.LwsmEvent;
-import lwsm.LwsmState;
+import com.tr.lwsm.LwsmEvent;
+import com.tr.lwsm.LwsmState;
 
 /**
  * 转换结果

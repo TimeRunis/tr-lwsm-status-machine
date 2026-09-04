@@ -1,7 +1,7 @@
-package lwsm;
+package com.tr.lwsm;
 
-import lwsm.obj.CustomStateMachine;
-import lwsm.obj.entity.CustomTransitionResult;
+import com.tr.lwsm.obj.CustomStateMachine;
+import com.tr.lwsm.obj.entity.CustomTransitionResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;

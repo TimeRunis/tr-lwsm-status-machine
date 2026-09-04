@@ -1,9 +1,9 @@
-package lwsm;
+package com.tr.lwsm;
 
-import lwsm.obj.CustomStateMachine;
-import lwsm.obj.StateMachine;
-import lwsm.obj.entity.CustomTransitionResult;
-import lwsm.obj.entity.TransitionResult;
+import com.tr.lwsm.obj.CustomStateMachine;
+import com.tr.lwsm.obj.StateMachine;
+import com.tr.lwsm.obj.entity.CustomTransitionResult;
+import com.tr.lwsm.obj.entity.TransitionResult;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;

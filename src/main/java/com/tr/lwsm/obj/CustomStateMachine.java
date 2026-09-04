@@ -1,6 +1,6 @@
-package lwsm.obj;
+package com.tr.lwsm.obj;
 
-import lwsm.obj.entity.CustomTransitionResult;
+import com.tr.lwsm.obj.entity.CustomTransitionResult;
 
 import java.util.HashMap;
 import java.util.Map;

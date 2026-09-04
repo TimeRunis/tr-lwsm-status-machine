@@ -1,8 +1,8 @@
-package lwsm.obj;
+package com.tr.lwsm.obj;
 
-import lwsm.LwsmEvent;
-import lwsm.LwsmState;
-import lwsm.obj.entity.TransitionResult;
+import com.tr.lwsm.obj.entity.TransitionResult;
+import com.tr.lwsm.LwsmEvent;
+import com.tr.lwsm.LwsmState;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

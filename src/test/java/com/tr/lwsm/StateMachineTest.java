@@ -1,7 +1,9 @@
-package lwsm;
+package com.tr.lwsm;
 
-import lwsm.obj.StateMachine;
-import lwsm.obj.entity.TransitionResult;
+import com.tr.lwsm.LwsmEvent;
+import com.tr.lwsm.LwsmState;
+import com.tr.lwsm.obj.StateMachine;
+import com.tr.lwsm.obj.entity.TransitionResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
