@@ -23,7 +23,7 @@ cd tr-lwsm-status-machine
 mvn clean install
 ```
 
-### 方式一：枚举版（推荐，类型安全）
+### 方式一：枚举版
 
 ```java
 // 1. 定义状态和事件枚举
@@ -48,7 +48,7 @@ OrderState target = engine.transition(OrderState.INIT, OrderEvent.PAY);
 // target = PAYING
 ```
 
-### 方式二：自定义版（纯字符串，零约束）
+### 方式二：自定义版
 
 ```java
 CustomStateMachine<String, String> engine = new CustomStateMachine<>(Function.identity());
@@ -84,7 +84,7 @@ CustomStateMachine<MyState, MyEvent> engine =
 
 
 ```java
-// 推荐用法：业务层直接用 fire，简洁明了
+// 推荐用法：业务层直接用 transitionWillThrow，简洁明了
 OrderState target = engine.transitionWillThrow(current, event);
 
 // 需要细粒度控制时用 transition
