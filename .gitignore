@@ -1,0 +1,65 @@
+# ==================== Maven ====================
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ==================== IDE ====================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+.idea/**/contentModel.xml
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.xml
+.idea/**/sqlDataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml
+.idea/**/dbnavigator.xml
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+*.tmp
+*.bak
+*.swp
+*.cache
+*.diff
+*.patch
+*.tmp
+
+# VS Code
+.vscode/
+
+# ==================== 系统文件 ====================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.sh~
+*.bak
+
+# ==================== 测试和临时文件 ====================
+**/test-output/
+**/target/surefire-reports/
+**/target/failsafe-reports/
+*.pid
+*.seed
+*.lock
