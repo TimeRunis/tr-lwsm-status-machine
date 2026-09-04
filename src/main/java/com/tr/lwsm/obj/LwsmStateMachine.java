@@ -1,26 +1,28 @@
 package com.tr.lwsm.obj;
 
-import com.tr.lwsm.obj.entity.LwsmContent;
 import com.tr.lwsm.obj.entity.TransitionResult;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 
 /**
  * 轻量级状态机引擎。
- *
+ * <p>
  * 支持任意状态/事件/上下文类型，通过 DSL 注册路由：
  * <pre>{@code
  * engine
  *     .from(OrderState.PENDING)
  *     .on(OrderEvent.PAY)
  *     .to(OrderState.PAYING)
- *     .guard(content -> ...)
- *     .action(content -> ...);
+ *     .guard((context, event) -> ...)
+ *     .action((context, event) -> ...);
  * }</pre>
- * 实际 guard/action 入参统一为 {@link LwsmContent}，内部同时携带 event 和业务上下文。
+ * 同一个 {@code (source, event)} 支持注册多条 transition，
+ * 执行时按注册顺序匹配，第一个 guard 通过的 transition 生效。
  *
  * @param <S> 状态类型
  * @param <E> 事件类型
@@ -28,7 +30,7 @@ import java.util.function.Predicate;
  */
 public class LwsmStateMachine<S, E, C> {
 
-    private final Map<S, Map<E, Transition<S, E, C>>> routes = new ConcurrentHashMap<>();
+    private final Map<S, Map<E, List<Transition<S, E, C>>>> routes = new ConcurrentHashMap<>();
 
     // ==================== DSL 入口 ====================
 
@@ -46,8 +48,8 @@ public class LwsmStateMachine<S, E, C> {
             S source,
             E event,
             S target,
-            Predicate<LwsmContent<E, C>> guard,
-            Consumer<LwsmContent<E, C>> action) {
+            BiPredicate<C, E> guard,
+            BiConsumer<C, E> action) {
         add(source, event, target, guard, action);
         return this;
     }
@@ -90,10 +92,11 @@ public class LwsmStateMachine<S, E, C> {
             S source,
             E event,
             S target,
-            Predicate<LwsmContent<E, C>> guard,
-            Consumer<LwsmContent<E, C>> action) {
+            BiPredicate<C, E> guard,
+            BiConsumer<C, E> action) {
         routes.computeIfAbsent(source, k -> new ConcurrentHashMap<>())
-              .put(event, new Transition<>(target, guard, action));
+              .computeIfAbsent(event, k -> new CopyOnWriteArrayList<>())
+              .add(new Transition<>(target, guard, action));
     }
 
     private TransitionResult<S, E> doTransition(
@@ -102,41 +105,44 @@ public class LwsmStateMachine<S, E, C> {
             C context,
             boolean runAction) {
 
-        Map<E, Transition<S, E, C>> byEvent = routes.get(current);
+        Map<E, List<Transition<S, E, C>>> byEvent = routes.get(current);
         if (byEvent == null) {
-            return TransitionResult.fail(current, event, "当前状态无任何路由: " + current);
+            return TransitionResult.fail(current, event,
+                    TransitionResult.FailReason.NO_ROUTE,
+                    "当前状态无任何路由: " + current);
         }
 
-        Transition<S, E, C> transition = byEvent.get(event);
-        if (transition == null) {
+        List<Transition<S, E, C>> transitions = byEvent.get(event);
+        if (transitions == null || transitions.isEmpty()) {
             return TransitionResult.fail(current, event,
+                    TransitionResult.FailReason.NO_ROUTE,
                     "路由未找到: " + current + " -> " + event);
         }
 
-        LwsmContent<E, C> lwsmContent = new LwsmContent<>(event, context);
-
-        if (transition.guard != null && !transition.guard.test(lwsmContent)) {
-            return TransitionResult.fail(current, event,
-                    "守卫未通过: " + current + " -> " + event);
+        for (Transition<S, E, C> transition : transitions) {
+            if (transition.guard == null || transition.guard.test(context, event)) {
+                if (runAction && transition.action != null) {
+                    transition.action.accept(context, event);
+                }
+                return TransitionResult.success(current, event, transition.target);
+            }
         }
 
-        if (runAction && transition.action != null) {
-            transition.action.accept(lwsmContent);
-        }
-
-        return TransitionResult.success(current, event, transition.target);
+        return TransitionResult.fail(current, event,
+                TransitionResult.FailReason.GUARD_REJECTED,
+                "所有守卫未通过: " + current + " -> " + event);
     }
 
     // ==================== 路由定义 ====================
 
     private static class Transition<S, E, C> {
         final S target;
-        final Predicate<LwsmContent<E, C>> guard;
-        final Consumer<LwsmContent<E, C>> action;
+        final BiPredicate<C, E> guard;
+        final BiConsumer<C, E> action;
 
         Transition(S target,
-                   Predicate<LwsmContent<E, C>> guard,
-                   Consumer<LwsmContent<E, C>> action) {
+                   BiPredicate<C, E> guard,
+                   BiConsumer<C, E> action) {
             this.target = target;
             this.guard = guard;
             this.action = action;
@@ -175,7 +181,7 @@ public class LwsmStateMachine<S, E, C> {
         private final S source;
         private final E event;
         private final S target;
-        private Predicate<LwsmContent<E, C>> guard;
+        private BiPredicate<C, E> guard;
 
         ToBuilder(S source, E event, S target) {
             this.source = source;
@@ -183,12 +189,12 @@ public class LwsmStateMachine<S, E, C> {
             this.target = target;
         }
 
-        public ToBuilder guard(Predicate<LwsmContent<E, C>> guard) {
+        public ToBuilder guard(BiPredicate<C, E> guard) {
             this.guard = guard;
             return this;
         }
 
-        public LwsmStateMachine<S, E, C> action(Consumer<LwsmContent<E, C>> action) {
+        public LwsmStateMachine<S, E, C> action(BiConsumer<C, E> action) {
             add(source, event, target, guard, action);
             return LwsmStateMachine.this;
         }

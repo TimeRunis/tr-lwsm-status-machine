@@ -164,12 +164,12 @@ class LwsmStateMachineCustomTypeTest {
                 .from("INIT")
                 .on("PAY")
                 .to("PAYING")
-                .guard(content ->
-                        content.event().equals("PAY") &&
-                        content.content().amount().compareTo(BigDecimal.ZERO) > 0)
-                .action(content -> {
+                .guard((ctx, event) ->
+                        event.equals("PAY") &&
+                        ctx.amount().compareTo(BigDecimal.ZERO) > 0)
+                .action((ctx, event) -> {
                     actionCalled[0] = true;
-                    assertThat(content.content().orderId()).isEqualTo("O001");
+                    assertThat(ctx.orderId()).isEqualTo("O001");
                 });
 
         OrderContext ctx = new OrderContext("O001", new BigDecimal("100"));
@@ -188,13 +188,14 @@ class LwsmStateMachineCustomTypeTest {
                 .from("INIT")
                 .on("PAY")
                 .to("PAYING")
-                .guard(content -> content.content().amount().compareTo(BigDecimal.ZERO) > 0)
+                .guard((ctx, event) -> ctx.amount().compareTo(BigDecimal.ZERO) > 0)
                 .register();
 
         OrderContext ctx = new OrderContext("O002", new BigDecimal("-1"));
         TransitionResult<String, String> result = engine.fire("INIT", "PAY", ctx);
 
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getErrorMsg()).contains("守卫未通过");
+        assertThat(result.getErrorMsg()).contains("所有守卫未通过");
+        assertThat(result.getFailReason()).isEqualTo(TransitionResult.FailReason.GUARD_REJECTED);
     }
 }

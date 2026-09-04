@@ -64,6 +64,7 @@ class LwsmStateMachineTest {
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getTarget()).isNull();
         assertThat(result.getErrorMsg()).contains("路由未找到");
+        assertThat(result.getFailReason()).isEqualTo(TransitionResult.FailReason.NO_ROUTE);
     }
 
     @Test
@@ -71,13 +72,13 @@ class LwsmStateMachineTest {
         TransitionResult<TestState, TestEvent> result = engine.transition(TestState.PAYING, TestEvent.CANCEL);
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getErrorMsg()).contains("路由未找到");
+        assertThat(result.getFailReason()).isEqualTo(TransitionResult.FailReason.NO_ROUTE);
     }
 
     // ==================== 3. 批量注册 ====================
     @Test
     void batchRegisterShouldWork() {
         LwsmStateMachine<TestState, TestEvent, Void> batchEngine = new LwsmStateMachine<>();
-        // 新引擎不依赖字符串路由表，这里改为直接注册路由
         batchEngine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
                 .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
 
@@ -124,8 +125,8 @@ class LwsmStateMachineTest {
                 .from(TestState.INIT)
                 .on(TestEvent.PAY)
                 .to(TestState.PAYING)
-                .guard(content -> true)
-                .action(content -> actionCalled[0] = true);
+                .guard((ctx, event) -> true)
+                .action((ctx, event) -> actionCalled[0] = true);
 
         TransitionResult<TestState, TestEvent> result = dslEngine.fire(TestState.INIT, TestEvent.PAY);
 
@@ -142,13 +143,14 @@ class LwsmStateMachineTest {
                 .from(TestState.INIT)
                 .on(TestEvent.PAY)
                 .to(TestState.PAYING)
-                .guard(content -> false)
+                .guard((ctx, event) -> false)
                 .register();
 
         TransitionResult<TestState, TestEvent> result = dslEngine.fire(TestState.INIT, TestEvent.PAY);
 
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getErrorMsg()).contains("守卫未通过");
+        assertThat(result.getErrorMsg()).contains("所有守卫未通过");
+        assertThat(result.getFailReason()).isEqualTo(TransitionResult.FailReason.GUARD_REJECTED);
     }
 
     @Test
@@ -160,7 +162,7 @@ class LwsmStateMachineTest {
                 .from(TestState.INIT)
                 .on(TestEvent.PAY)
                 .to(TestState.PAYING)
-                .action(content -> actionCalled[0] = true);
+                .action((ctx, event) -> actionCalled[0] = true);
 
         TransitionResult<TestState, TestEvent> result = dslEngine.transition(TestState.INIT, TestEvent.PAY);
 
@@ -168,7 +170,84 @@ class LwsmStateMachineTest {
         assertThat(actionCalled[0]).isFalse();
     }
 
-    // ==================== 7. transitionWillThrow ====================
+    // ==================== 7. 同状态同事件多条 transition ====================
+
+    @Test
+    void shouldChooseFirstMatchingTransitionWhenMultiple() {
+        LwsmStateMachine<TestState, TestEvent, String> engine = new LwsmStateMachine<>();
+
+        engine.from(TestState.INIT).on(TestEvent.PAY).to(TestState.PAYING)
+                .guard((ctx, event) -> ctx.equals("A"))
+                .register();
+
+        engine.from(TestState.INIT).on(TestEvent.PAY).to(TestState.PAID)
+                .guard((ctx, event) -> ctx.equals("B"))
+                .register();
+
+        TransitionResult<TestState, TestEvent> r1 = engine.fire(TestState.INIT, TestEvent.PAY, "A");
+        assertThat(r1.isSuccess()).isTrue();
+        assertThat(r1.getTarget()).isEqualTo(TestState.PAYING);
+
+        TransitionResult<TestState, TestEvent> r2 = engine.fire(TestState.INIT, TestEvent.PAY, "B");
+        assertThat(r2.isSuccess()).isTrue();
+        assertThat(r2.getTarget()).isEqualTo(TestState.PAID);
+    }
+
+    @Test
+    void shouldChooseDefaultTransitionWhenGuardedOnesRejected() {
+        LwsmStateMachine<TestState, TestEvent, String> engine = new LwsmStateMachine<>();
+
+        engine.from(TestState.INIT).on(TestEvent.PAY).to(TestState.PAYING)
+                .guard((ctx, event) -> false)
+                .register();
+
+        engine.from(TestState.INIT).on(TestEvent.PAY).to(TestState.PAID)
+                .register();
+
+        TransitionResult<TestState, TestEvent> result = engine.fire(TestState.INIT, TestEvent.PAY, "X");
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getTarget()).isEqualTo(TestState.PAID);
+    }
+
+    @Test
+    void shouldFailWhenAllGuardsRejected() {
+        LwsmStateMachine<TestState, TestEvent, Void> engine = new LwsmStateMachine<>();
+
+        engine.from(TestState.INIT).on(TestEvent.PAY).to(TestState.PAYING)
+                .guard((ctx, event) -> false)
+                .register();
+
+        engine.from(TestState.INIT).on(TestEvent.PAY).to(TestState.PAID)
+                .guard((ctx, event) -> false)
+                .register();
+
+        TransitionResult<TestState, TestEvent> result = engine.fire(TestState.INIT, TestEvent.PAY);
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorMsg()).contains("所有守卫未通过");
+        assertThat(result.getFailReason()).isEqualTo(TransitionResult.FailReason.GUARD_REJECTED);
+    }
+
+    // ==================== 8. Action 异常直接向上抛 ====================
+
+    @Test
+    void actionExceptionShouldPropagate() {
+        LwsmStateMachine<TestState, TestEvent, Void> engine = new LwsmStateMachine<>();
+
+        engine.from(TestState.INIT)
+                .on(TestEvent.PAY)
+                .to(TestState.PAYING)
+                .action((ctx, event) -> {
+                    throw new IllegalStateException("action boom");
+                });
+
+        assertThatThrownBy(() -> engine.fire(TestState.INIT, TestEvent.PAY))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("action boom");
+    }
+
+    // ==================== 9. transitionWillThrow ====================
     @Test
     void transitionWillThrowShouldThrowWhenFail() {
         assertThatThrownBy(() -> engine.transitionWillThrow(TestState.PAYING, TestEvent.CANCEL))
