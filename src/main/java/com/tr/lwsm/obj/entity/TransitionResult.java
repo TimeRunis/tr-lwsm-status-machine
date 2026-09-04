@@ -1,15 +1,12 @@
 package com.tr.lwsm.obj.entity;
 
-
-import com.tr.lwsm.LwsmEvent;
-import com.tr.lwsm.LwsmState;
-
 /**
  * 转换结果
+ *
  * @param <S> 状态
  * @param <E> 事件
  */
-public class TransitionResult<S extends LwsmState, E extends LwsmEvent> {
+public class TransitionResult<S, E> {
     private final boolean success;
     private final S source;
     private final E event;
@@ -24,11 +21,11 @@ public class TransitionResult<S extends LwsmState, E extends LwsmEvent> {
         this.errorMsg = errorMsg;
     }
 
-    public static <S extends LwsmState, E extends LwsmEvent> TransitionResult<S, E> success(S source, E event, S target) {
+    public static <S, E> TransitionResult<S, E> success(S source, E event, S target) {
         return new TransitionResult<>(true, source, event, target, null);
     }
 
-    public static <S extends LwsmState, E extends LwsmEvent> TransitionResult<S, E> fail(S source, E event, String errorMsg) {
+    public static <S, E> TransitionResult<S, E> fail(S source, E event, String errorMsg) {
         return new TransitionResult<>(false, source, event, null, errorMsg);
     }
 

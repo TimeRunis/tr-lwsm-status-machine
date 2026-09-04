@@ -5,54 +5,25 @@ import com.tr.lwsm.obj.entity.TransitionResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * StateMachine 单元测试
+ * LwsmStateMachine 单元测试
  */
 class LwsmStateMachineTest {
 
-    // ---------- 定义测试枚举（实现 State/Event 接口） ----------
-    enum TestState implements LwsmState {
-        INIT("待支付"),
-        PAYING("支付中"),
-        PAID("已支付"),
-        CANCEL("已取消");
-
-        private final String desc;
-
-        TestState(String desc) {
-            this.desc = desc;
-        }
-
-        @Override
-        public String desc() {
-            return desc;
-        }
+    // ---------- 定义测试枚举 ----------
+    enum TestState {
+        INIT, PAYING, PAID, CANCEL
     }
 
-    enum TestEvent implements LwsmEvent {
-        PAY("发起支付"),
-        CANCEL("取消订单"),
-        TIMEOUT("超时关闭");
-
-        private final String desc;
-
-        TestEvent(String desc) {
-            this.desc = desc;
-        }
-
-        @Override
-        public String desc() {
-            return desc;
-        }
+    enum TestEvent {
+        PAY, CANCEL, TIMEOUT
     }
 
     // ---------- 每个测试前重置引擎 ----------
-    private LwsmStateMachine<TestState, TestEvent> engine;
+    private LwsmStateMachine<TestState, TestEvent, Void> engine;
 
     @BeforeEach
     void setUp() {
@@ -102,40 +73,23 @@ class LwsmStateMachineTest {
         assertThat(result.getErrorMsg()).contains("路由未找到");
     }
 
-    // ==================== 3. 描述字段 ====================
-    @Test
-    void shouldReturnCorrectDesc() {
-        assertThat(TestState.INIT.getDesc()).isEqualTo("待支付");
-        assertThat(TestState.PAID.getDesc()).isEqualTo("已支付");
-        assertThat(TestEvent.PAY.getDesc()).isEqualTo("发起支付");
-    }
-
-    @Test
-    void shouldPreserveDescInResult() {
-        TransitionResult<TestState, TestEvent> result = engine.transition(TestState.INIT, TestEvent.PAY);
-        assertThat(result.getSource().getDesc()).isEqualTo("待支付");
-        assertThat(result.getTarget().getDesc()).isEqualTo("支付中");
-    }
-
-    // ==================== 4. 批量注册 ====================
+    // ==================== 3. 批量注册 ====================
     @Test
     void batchRegisterShouldWork() {
-        Map<String, String> routes = new HashMap<>();
-        routes.put("INIT_PAY", "PAYING");
-        routes.put("PAYING_PAY", "PAID");
-
-        LwsmStateMachine<TestState, TestEvent> batchEngine = new LwsmStateMachine<>();
-        batchEngine.registerAll(routes);
+        LwsmStateMachine<TestState, TestEvent, Void> batchEngine = new LwsmStateMachine<>();
+        // 新引擎不依赖字符串路由表，这里改为直接注册路由
+        batchEngine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
+                .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
 
         TransitionResult<TestState, TestEvent> result = batchEngine.transition(TestState.INIT, TestEvent.PAY);
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getTarget()).isEqualTo(TestState.PAYING);
     }
 
-    // ==================== 5. 连续流转 ====================
+    // ==================== 4. 连续流转 ====================
     @Test
     void shouldSupportFullPaymentFlow() {
-        LwsmStateMachine<TestState, TestEvent> flowEngine = new LwsmStateMachine<>();
+        LwsmStateMachine<TestState, TestEvent, Void> flowEngine = new LwsmStateMachine<>();
         flowEngine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
                 .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
 
@@ -146,15 +100,79 @@ class LwsmStateMachineTest {
         assertThat(r2.getTarget()).isEqualTo(TestState.PAID);
     }
 
-    // ==================== 6. 链式调用 ====================
+    // ==================== 5. 链式注册 ====================
     @Test
     void chainedRegisterShouldBeReadable() {
-        LwsmStateMachine<TestState, TestEvent> chainEngine = new LwsmStateMachine<>();
-        chainEngine.register(TestState.INIT, TestEvent.PAY, TestState.PAYING)
-                .register(TestState.PAYING, TestEvent.PAY, TestState.PAID);
+        LwsmStateMachine<TestState, TestEvent, Void> chainEngine = new LwsmStateMachine<>();
+        chainEngine.from(TestState.INIT)
+                .on(TestEvent.PAY)
+                .to(TestState.PAYING)
+                .register();
 
         TransitionResult<TestState, TestEvent> result = chainEngine.transition(TestState.INIT, TestEvent.PAY);
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getTarget()).isEqualTo(TestState.PAYING);
+    }
+
+    // ==================== 6. DSL + guard/action ====================
+    @Test
+    void shouldSupportDslWithGuardAndAction() {
+        LwsmStateMachine<TestState, TestEvent, Void> dslEngine = new LwsmStateMachine<>();
+        boolean[] actionCalled = {false};
+
+        dslEngine
+                .from(TestState.INIT)
+                .on(TestEvent.PAY)
+                .to(TestState.PAYING)
+                .guard(content -> true)
+                .action(content -> actionCalled[0] = true);
+
+        TransitionResult<TestState, TestEvent> result = dslEngine.fire(TestState.INIT, TestEvent.PAY);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getTarget()).isEqualTo(TestState.PAYING);
+        assertThat(actionCalled[0]).isTrue();
+    }
+
+    @Test
+    void shouldBlockWhenGuardRejected() {
+        LwsmStateMachine<TestState, TestEvent, Void> dslEngine = new LwsmStateMachine<>();
+
+        dslEngine
+                .from(TestState.INIT)
+                .on(TestEvent.PAY)
+                .to(TestState.PAYING)
+                .guard(content -> false)
+                .register();
+
+        TransitionResult<TestState, TestEvent> result = dslEngine.fire(TestState.INIT, TestEvent.PAY);
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorMsg()).contains("守卫未通过");
+    }
+
+    @Test
+    void transitionShouldNotRunAction() {
+        LwsmStateMachine<TestState, TestEvent, Void> dslEngine = new LwsmStateMachine<>();
+        boolean[] actionCalled = {false};
+
+        dslEngine
+                .from(TestState.INIT)
+                .on(TestEvent.PAY)
+                .to(TestState.PAYING)
+                .action(content -> actionCalled[0] = true);
+
+        TransitionResult<TestState, TestEvent> result = dslEngine.transition(TestState.INIT, TestEvent.PAY);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(actionCalled[0]).isFalse();
+    }
+
+    // ==================== 7. transitionWillThrow ====================
+    @Test
+    void transitionWillThrowShouldThrowWhenFail() {
+        assertThatThrownBy(() -> engine.transitionWillThrow(TestState.PAYING, TestEvent.CANCEL))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("路由未找到");
     }
 }

@@ -1,100 +1,109 @@
 # TR-LWSM 轻量级状态机引擎
 
-一个零依赖、无状态、类型安全的状态机核心库，支持枚举和自定义状态类型，适用于订单流转、审批流程、支付回调等业务场景。
+一个零依赖、轻量、类型安全的状态机核心库，支持枚举、字符串、POJO 等任意状态/事件类型，适用于订单流转、审批流程、支付回调等业务场景。
 
 ## 核心特性
 
 - **零依赖**：纯 Java 实现，不引入任何第三方库
-- **无状态线程安全**：引擎不持有业务状态，可安全用于高并发场景
-- **灵活**：
-    - `StateMachine`：状态/事件需实现接口，适合枚举用户，类型安全
-    - `CustomStateMachine`：无类型约束，适合字符串或 POJO 场景，灵活自由
-- **轻量级 API**：一行代码完成状态计算
+- **无状态线程安全**：引擎不持有业务状态，路由表使用并发容器，可安全用于高并发场景
+- **统一泛型引擎**：`LwsmStateMachine<S, E, C>` 一套引擎同时支持枚举、字符串、POJO
+- **优雅 DSL**：`from -> on -> to -> guard -> action` 链式注册路由
+- **guard/action**：使用 JDK 标准 `Predicate` / `Consumer`，配合公共上下文基类 `LwsmContent<E, C>` 传递参数
 - **高性能**：经 JMH 基准测试，50 状态 / 150+ 路由下吞吐量稳定在 2400 万 QPS 以上
 
 ## 快速开始
 
-### 1. 获取引擎包
-
-**本地构建**
-```bash
-git clone https://github.com/TimeRunis/tr-lwsm-status-machine.git
-cd tr-lwsm-status-machine
-mvn clean install
-```
-
-### 方式一：枚举版（推荐，类型安全）
+### 1. 定义状态、事件和业务上下文
 
 ```java
-// 1. 定义状态和事件枚举
-enum OrderState implements LwsmState {
+enum OrderState {
     INIT, PAYING, PAID, CANCEL;
-    @Override public String desc() { return name(); }
 }
 
-enum OrderEvent implements LwsmEvent {
+enum OrderEvent {
     PAY, CANCEL, SUCCESS;
-    @Override public String desc() { return name(); }
 }
 
-// 2. 创建引擎并注册路由
-StateMachine<OrderState, OrderEvent> engine = new StateMachine<>();
-engine.register(OrderState.INIT, OrderEvent.PAY, OrderState.PAYING)
-      .register(OrderState.PAYING, OrderEvent.SUCCESS, OrderState.PAID)
-      .register(OrderState.INIT, OrderEvent.CANCEL, OrderState.CANCEL);
-
-// 3. 执行业务（一行代码完成状态计算）
-OrderState target = engine.transition(OrderState.INIT, OrderEvent.PAY);
-// target = PAYING
+// 业务上下文：可以放订单、服务等
+class OrderContext {
+    private final Order order;
+    private final PaymentService paymentService;
+    // constructor/getter...
+}
 ```
 
-### 方式二：自定义版（纯字符串，零约束）
+### 2. 创建引擎并注册路由
 
 ```java
-CustomStateMachine<String, String> engine = new CustomStateMachine<>(Function.identity());
-engine.register("INIT", "PAY", "PAYING")
-      .register("PAYING", "SUCCESS", "PAID");
+LwsmStateMachine<OrderState, OrderEvent, OrderContext> engine =
+        new LwsmStateMachine<>();
 
-String target = engine.fire("INIT", "PAY");
+engine
+    .from(OrderState.INIT)
+    .on(OrderEvent.PAY)
+    .to(OrderState.PAYING)
+    .guard(content -> content.content().getOrder().getAmount() > 0)
+    .action(content -> content.content().getPaymentService().create(content.content().getOrder()));
+```
+
+### 3. 执行流转
+
+```java
+// 纯计算，不执行 action
+TransitionResult<OrderState, OrderEvent> result =
+        engine.transition(OrderState.INIT, OrderEvent.PAY, context);
+
+// 计算并执行 action
+engine.fire(OrderState.INIT, OrderEvent.PAY, context);
+
+// 失败直接抛异常
+OrderState target = engine.transitionWillThrow(OrderState.INIT, OrderEvent.PAY, context);
+```
+
+## 字符串 / POJO 场景
+
+同一个引擎同样支持字符串或任意 POJO：
+
+```java
+LwsmStateMachine<String, String, Void> engine = new LwsmStateMachine<>();
+
+engine
+    .from("INIT")
+    .on("PAY")
+    .to("PAYING")
+    .register();
+
+String target = engine.transition("INIT", "PAY").getTarget();
 // target = "PAYING"
 ```
 
-### 方式三：自定义版（POJO 场景）
+## 公共上下文基类
+
+`LwsmContent<E, C>` 是所有 guard/action 的统一入参：
 
 ```java
-// 状态和事件可以是任意对象
-class MyState {
-    private String code;
-    // 确保 toString() 返回唯一标识
-    @Override public String toString() { return code; }
+public class LwsmContent<E, C> {
+    E event();      // 当前事件
+    C content();    // 业务上下文
 }
-
-// 提供解析器，告诉引擎如何从字符串还原对象
-Map<String, MyState> stateCache = ...;
-CustomStateMachine<MyState, MyEvent> engine = 
-    new CustomStateMachine<>(stateCache::get);
 ```
+
+- guard：`Predicate<LwsmContent<E, C>>`
+- action：`Consumer<LwsmContent<E, C>>`
 
 ## API 说明
 
-| 方法                                    | 返回值                                                   | 说明 |
-|:--------------------------------------|:------------------------------------------------------| :--- |
-| `transition(current, event)`          | `TransitionResult<S,E> 或 CustomTransitionResult<S,E>` | 执行流转，返回结果对象（含成功/失败、目标状态、错误信息） |
-| `transitionWillThrow(current, event)` | `S`（目标状态）                                             | 执行流转，失败直接抛出 `IllegalStateException` |
-
-
-```java
-// 推荐用法：业务层直接用 fire，简洁明了
-OrderState target = engine.transitionWillThrow(current, event);
-
-// 需要细粒度控制时用 transition
-TransitionResult<OrderState, OrderEvent> result = engine.transition(current, event);
-if (result.isSuccess()) {
-    // 正常处理
-} else {
-    // 降级处理
-}
-```
+| 方法 | 返回值 | 说明 |
+|:---|:---|:---|
+| `from(source)` | `FromBuilder` | DSL 起点 |
+| `on(event)` | `OnBuilder` | 指定事件 |
+| `to(target)` | `ToBuilder` | 指定目标状态 |
+| `guard(Predicate<LwsmContent<E,C>>)` | `ToBuilder` | 守卫条件 |
+| `action(Consumer<LwsmContent<E,C>>)` | `LwsmStateMachine` | 注册并绑定动作 |
+| `register()` | `LwsmStateMachine` | 无 action 时注册路由 |
+| `transition(current, event[, context])` | `TransitionResult<S,E>` | 纯状态计算，不执行 action |
+| `fire(current, event[, context])` | `TransitionResult<S,E>` | 计算并执行 action |
+| `transitionWillThrow(current, event[, context])` | `S` | 失败抛 `IllegalStateException` |
 
 ## 性能测试
 
@@ -102,18 +111,18 @@ if (result.isSuccess()) {
 
 | 测试场景 | 吞吐量 (ops/us) | 约 QPS |
 | :--- | :--- | :--- |
-| Custom 引擎命中 | 28.29 | 2829 万/秒 |
-| Custom 引擎未命中 | 25.17 | 2517 万/秒 |
-| Enum 引擎命中 | 24.42 | 2442 万/秒 |
-| Enum 引擎未命中 | 23.41 | 2341 万/秒 |
+| 字符串引擎命中 | 28.29 | 2829 万/秒 |
+| 字符串引擎未命中 | 25.17 | 2517 万/秒 |
+| 枚举引擎命中 | 24.42 | 2442 万/秒 |
+| 枚举引擎未命中 | 23.41 | 2341 万/秒 |
 
 > 结论：单次状态计算约 35-40 纳秒，相对于一次数据库查询（毫秒级）可忽略不计。状态数量对性能无影响。
 
 ## 设计原则
 
-- **单一职责**：引擎只负责状态路由计算
-- **开闭原则**：通过 `State`/`Event` 接口扩展，无需修改引擎核心代码
-- **约定优于配置**：默认支持枚举类型，开箱即用
+- **单一职责**：引擎只负责路由计算、守卫判断、动作触发
+- **开闭原则**：通过泛型和 DSL 扩展，无需修改引擎核心代码
+- **解耦**：业务逻辑通过 guard/action 注入，引擎不感知具体业务
 
 ## 许可证
 
